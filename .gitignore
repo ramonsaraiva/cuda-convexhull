@@ -1,0 +1,10 @@
+build
+resources
+*.swp
+*.o
+parser/lexer.cpp
+parser/parser.cpp
+parser/parser.hpp
+parser/parser.h
+parser/parser
+*.*~
