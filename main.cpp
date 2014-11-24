@@ -23,7 +23,7 @@ void* setup_sdl();
 void setup_gl();
 void render();
 
-std::vector<vec3> cube_points;
+std::vector<vec3> points;
 std::vector<int> polys;
 
 int main(int argc, char** argv)
@@ -36,18 +36,32 @@ int main(int argc, char** argv)
 	Camera cam = Camera(90, WIDTH, HEIGHT, 1000);
 	Scene::instance().set_default_camera(&cam);
 
-	SceneObject cube = SceneObject("cube");
-	cube.load_obj("primitives/sphere/sphere.obj");
-	cube.build_vbo();
-	cube.set_render_mode(GL_POINTS);
+	SceneObject obj = SceneObject("obj");
+	obj.load_obj(std::string("primitives/" + std::string(argv[1]) + "/" + std::string(argv[1]) + ".obj").c_str());
+	obj.build_vbo();
+	obj.set_render_mode(GL_POINTS);
 
-	Scene::instance().add_object("cube", &cube);
+	Scene::instance().add_object("obj", &obj);
 
 	//hull
-	cube.points(cube_points);
-	sanitize(cube_points);
+	
+	/*
+	vec3_all_tests();
+	ch_all_tests();
+	*/
+	
+	obj.points(points);
+	sanitize(points);
+	giftwrap(points, polys);
 
-	giftwrap(cube_points, polys);
+	std::cout << "polys size " << polys.size() / 3 << std::endl;
+
+	/*
+	for (int i = 0; i < polys.size() / 3; i++)
+	{
+		std::cout << polys[i*3] << " # " << polys[i*3+1] << " # " << polys[i*3+2] << std::endl;
+	}
+	*/
 
 	input_ctr = InputController();
 	while (1)
@@ -151,15 +165,18 @@ void render()
 	Scene::instance().default_camera()->refresh_lookat();
 	//Scene::instance().render();
 
-	glPushMatrix();
 	glColor3f(1.0, 0.5, 0.5);
-	glBegin(GL_LINES);
+	glBegin(GL_POLYGON);
 	for (int i = 0; i < polys.size(); i++)
 	{
-		glVertex3f(cube_points[polys[i]].x, cube_points[polys[i]].y, cube_points[polys[i]].z);
+		glVertex3f(points[polys[i]].x, points[polys[i]].y, points[polys[i]].z);
+		if (i != 0 && i % 3 == 0)
+		{
+			glEnd();
+			glBegin(GL_POLYGON);
+		}
 	}
 	glEnd();
-	glPopMatrix();
 
 	SDL_GL_SwapBuffers( );
 }
