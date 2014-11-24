@@ -28,11 +28,14 @@ $(OBJDIR)/scene.o: scene/scene.cpp build
 $(OBJDIR)/input.o: input/input.cpp build
 	$(CC) $(CFLAGS) -o $(OBJDIR)/input.o -c input/input.cpp
 
+$(OBJDIR)/convexhull.o: convexhull/convexhull.cpp build
+	$(CC) $(CFLAGS) -o $(OBJDIR)/convexhull.o -c convexhull/convexhull.cpp
+
 $(OBJDIR)/main.o: main.cpp build
 	$(CC) $(CFLAGS) -o $(OBJDIR)/main.o -c main.cpp
 
-$(BINDIR)/convexhull: $(OBJDIR)/tiny_obj_loader.o $(OBJDIR)/camera.o $(OBJDIR)/scene.o $(OBJDIR)/input.o $(OBJDIR)/main.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $(BINDIR)/convexhull $(LIBS) $(OBJDIR)/tiny_obj_loader.o $(OBJDIR)/camera.o $(OBJDIR)/scene.o $(OBJDIR)/input.o $(OBJDIR)/main.o
+$(BINDIR)/convexhull: $(OBJDIR)/tiny_obj_loader.o $(OBJDIR)/camera.o $(OBJDIR)/scene.o $(OBJDIR)/input.o $(OBJDIR)/convexhull.o $(OBJDIR)/main.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $(BINDIR)/convexhull $(LIBS) $(OBJDIR)/tiny_obj_loader.o $(OBJDIR)/camera.o $(OBJDIR)/scene.o $(OBJDIR)/input.o $(OBJDIR)/convexhull.o $(OBJDIR)/main.o
 
 clean:
 	rm -rf build

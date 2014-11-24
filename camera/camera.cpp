@@ -23,6 +23,7 @@ Camera::Camera(float angle, int width, int height, float depth)
 	_width = width;
 	_height = height;
 	_depth = depth;
+	_position[2] = -3;
 
 	refresh_direction();
 }

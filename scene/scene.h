@@ -10,6 +10,7 @@
 #include "tinyobjloader/tiny_obj_loader.h"
 
 #include "camera/camera.h"
+#include "convexhull/convexhull.h"
 
 //	SceneObject
 
@@ -22,6 +23,7 @@ class SceneObject
 		void set_scale(const float x, const float y, const float z);
 		void set_angle(const float a);
 		void set_render_mode(const GLuint mode);
+		void set_p(float x, float y, float z);
 		void load_obj(const char* file);
 		void build_vbo();
 		void render();
@@ -33,8 +35,9 @@ class SceneObject
 		float* translate();
 		float* rotate();
 		float* scale();
-		GLuint render_mode();
 
+		void points(std::vector<vec3>& p);
+		GLuint render_mode();
 		std::string texname();
 	
 	private:
@@ -47,6 +50,7 @@ class SceneObject
 		GLuint _idx_vboid;
 		int _idx_size;
 		GLuint _render_mode;
+		float _p[3];
 
 		std::string _matdir;
 		std::string _texname;

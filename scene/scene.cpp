@@ -11,6 +11,7 @@
 #include "tinyobjloader/tiny_obj_loader.h"
 
 #include "scene.h"
+#include "convexhull/convexhull.h"
 
 //	SceneObject
 
@@ -54,6 +55,13 @@ void SceneObject::set_angle(const float a)
 void SceneObject::set_render_mode(GLuint mode)
 {
 	_render_mode = mode;
+}
+
+void SceneObject::set_p(float x, float y, float z)
+{
+	_p[0] = x;
+	_p[1] = y;
+	_p[2] = z;
 }
 
 void SceneObject::load_obj(const char* file)
@@ -130,10 +138,7 @@ void SceneObject::build_vbo()
 void SceneObject::render()
 {
 	if (_render_mode == GL_POINTS)
-	{
-		glPointSize(10);
-		glColor3f(0, 0, 0);
-	}
+		glColor3f(1, 1, 1);
 
 	glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 	glEnableClientState(GL_NORMAL_ARRAY);
@@ -165,6 +170,13 @@ void SceneObject::render()
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _idx_vboid);
 	glDrawElements(_render_mode, _idx_size, GL_UNSIGNED_INT, NULL);
+
+	glPointSize(20);
+	glColor3f(0, 1, 0);
+	glBegin(GL_POINTS);
+		glVertex3f(_p[0], _p[1], _p[2]);
+	glEnd();
+	glPointSize(10);
 
 	glPopMatrix();
 
@@ -203,6 +215,19 @@ float* SceneObject::rotate()
 float* SceneObject::scale()
 {
 	return _scale;
+}
+
+void SceneObject::points(std::vector<vec3>& p)
+{
+	for (int i = 0; i < _shapes.size(); i++)
+	{
+		for (int j = 0; j < _shapes[i].mesh.positions.size() / 3; j++)
+		{
+			struct vec3_s v = vec3_s(_shapes[i].mesh.positions[j*3], _shapes[i].mesh.positions[j*3+1], _shapes[i].mesh.positions[j*3+2]);
+
+			p.push_back(v);
+		}
+	}
 }
 
 GLuint SceneObject::render_mode()

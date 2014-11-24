@@ -10,6 +10,7 @@
 #include "camera/camera.h"
 #include "scene/scene.h"
 #include "input/input.h"
+#include "convexhull/convexhull.h"
 
 #define WIDTH 900
 #define HEIGHT 700
@@ -22,6 +23,9 @@ void* setup_sdl();
 void setup_gl();
 void render();
 
+std::vector<vec3> cube_points;
+std::vector<int> polys;
+
 int main(int argc, char** argv)
 {
 	setup_sdl();
@@ -33,11 +37,17 @@ int main(int argc, char** argv)
 	Scene::instance().set_default_camera(&cam);
 
 	SceneObject cube = SceneObject("cube");
-	cube.load_obj("primitives/cube/cube.obj");
+	cube.load_obj("primitives/sphere/sphere.obj");
 	cube.build_vbo();
 	cube.set_render_mode(GL_POINTS);
 
 	Scene::instance().add_object("cube", &cube);
+
+	//hull
+	cube.points(cube_points);
+	sanitize(cube_points);
+
+	giftwrap(cube_points, polys);
 
 	input_ctr = InputController();
 	while (1)
@@ -57,13 +67,15 @@ void setup_gl()
 	   glEnable(GL_CULL_FACE);
 	*/
 
-	glClearColor(0.27451, 0.50, 0.70, 0);
+	glClearColor(0, 0, 0, 0);
 	glClearDepth(1.0);
+	/*
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_LIGHT0);
 	glEnable(GL_LIGHTING);
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_COLOR_MATERIAL);
+	*/
 
 	glDepthFunc(GL_LESS);
 	glEnable(GL_DEPTH_TEST);
@@ -80,15 +92,18 @@ void setup_gl()
 
 	glShadeModel(GL_SMOOTH);
 
+	/*
 	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient_light);
 
 	glLightfv(GL_LIGHT0, GL_POSITION, light_position);
 	glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+	*/
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 
+	glPointSize(10);
 	gluPerspective(60.0, WIDTH / HEIGHT, 1.0, 1024.0);
 }
 
@@ -134,8 +149,17 @@ void render()
 	glLoadIdentity();
 
 	Scene::instance().default_camera()->refresh_lookat();
+	//Scene::instance().render();
 
-	Scene::instance().render();
+	glPushMatrix();
+	glColor3f(1.0, 0.5, 0.5);
+	glBegin(GL_LINES);
+	for (int i = 0; i < polys.size(); i++)
+	{
+		glVertex3f(cube_points[polys[i]].x, cube_points[polys[i]].y, cube_points[polys[i]].z);
+	}
+	glEnd();
+	glPopMatrix();
 
 	SDL_GL_SwapBuffers( );
 }
