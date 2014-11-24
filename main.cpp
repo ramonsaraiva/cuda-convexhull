@@ -77,10 +77,10 @@ void setup_gl()
 
 	glClearColor(0, 0, 0, 0);
 	glClearDepth(1.0);
-	/*
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_LIGHT0);
 	glEnable(GL_LIGHTING);
+	/*
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_COLOR_MATERIAL);
 	*/
@@ -100,13 +100,11 @@ void setup_gl()
 
 	glShadeModel(GL_SMOOTH);
 
-	/*
 	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, ambient_light);
 
 	glLightfv(GL_LIGHT0, GL_POSITION, light_position);
 	glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular);
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
-	*/
 
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
@@ -159,14 +157,23 @@ void render()
 	Scene::instance().default_camera()->refresh_lookat();
 	//Scene::instance().render();
 
-	glColor3f(1.0, 0.5, 0.5);
+	glColor3f(1.0, 1.0, 1.0);
+	glBegin(GL_TRIANGLES);
 	for (int i = 0; i < polys.size(); i++)
 	{
-		glBegin(GL_POLYGON);
+		vec3 v1 = polys[i][1].sub(polys[i][0]);
+		vec3 v2 = polys[i][2].sub(polys[i][0]);
+		vec3 normal = v1.cross(v2);
+		normal.normalize();
+
+		glNormal3f(normal.x, normal.y, normal.z);
+
 		for (int j = 0; j < 3; j++)
+		{
 			glVertex3f(polys[i][j].x, polys[i][j].y, polys[i][j].z);
-		glEnd();
+		}
 	}
+	glEnd();
 
 	SDL_GL_SwapBuffers();
 }
