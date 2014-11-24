@@ -92,4 +92,14 @@ int next_point(std::vector<vec3> points, int p1i, int p2i);
 bool edge_exists(std::map<std::string, bool>& created, int p1, int p2);
 void add_edge(std::map<std::string, bool>& created, std::stack<std::array<int, 2>>& edges, int p1, int p2);
 
+//tests
+void vec3_add_test();
+void vec3_sub_test();
+void vec3_cross_test();
+void vec3_aa_normalize_test();
+void vec3_length1_normalize_test();
+void vec3_po_axis_test();
+
+
+
 #endif
