@@ -49,7 +49,7 @@ void add_edge(std::map<std::string, bool>& created, std::stack<std::array<int, 2
 	}
 }
 
-int giftwrap(std::vector<vec3>& points, std::vector<int>& polys)
+int giftwrap(std::vector<vec3>& points, std::vector<std::array<vec3, 3>>& polys)
 {
 	std::stack<std::array<int, 2>> open_edges;
 	std::map<std::string, bool> created_edges;
@@ -70,9 +70,8 @@ int giftwrap(std::vector<vec3>& points, std::vector<int>& polys)
 
 		int p3 = next_point(points, p1, p2);
 
-		polys.push_back(p1);
-		polys.push_back(p2);
-		polys.push_back(p3);
+		std::array<vec3, 3> v = {points[p1], points[p2], points[p3]};
+		polys.push_back(v);
 
 		add_edge(created_edges, open_edges, p1, p2);
 		add_edge(created_edges, open_edges, p2, p3);
@@ -372,7 +371,7 @@ void ch_lower_point_bug_case_test()
 void ch_tetrahedron_test()
 {
 	std::vector<vec3> points;
-	std::vector<int> polys;
+	std::vector<std::array<vec3, 3>> polys;
 
 	points.push_back(vec3(0, 0, 0));
 	points.push_back(vec3(1, 0, 0));
@@ -383,8 +382,11 @@ void ch_tetrahedron_test()
 	giftwrap(points, polys);
 
 	std::cout << "polys size " << polys.size() / 3 << std::endl;
-	for (int i = 0; i < polys.size() / 3; i++)
+	for (int i = 0; i < polys.size(); i++)
 	{
-		std::cout << polys[i*3] << " # " << polys[i*3+1] << " # " << polys[i*3+2] << std::endl;
+		std::cout << "p" << std::endl;
+		polys[i][0].debug();
+		polys[i][1].debug();
+		polys[i][2].debug();
 	}
 }

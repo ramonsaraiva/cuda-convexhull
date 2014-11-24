@@ -86,7 +86,7 @@ typedef struct vec3_s
 } vec3;
 
 void sanitize(std::vector<vec3>& points);
-int giftwrap(std::vector<vec3>& points, std::vector<int>& polys);
+int giftwrap(std::vector<vec3>& points, std::vector<std::array<vec3, 3>>& polys);
 int lower(std::vector<vec3> points);
 int next_point(std::vector<vec3> points, int p1i, int p2i);
 bool edge_exists(std::map<std::string, bool>& created, int p1, int p2);

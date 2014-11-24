@@ -1,4 +1,5 @@
 #include <iostream>
+#include <array>
 
 #include <SDL/SDL.h>
 #include <GL/glew.h>
@@ -24,7 +25,7 @@ void setup_gl();
 void render();
 
 std::vector<vec3> points;
-std::vector<int> polys;
+std::vector<std::array<vec3, 3>> polys;
 
 int main(int argc, char** argv)
 {
@@ -54,14 +55,7 @@ int main(int argc, char** argv)
 	sanitize(points);
 	giftwrap(points, polys);
 
-	std::cout << "polys size " << polys.size() / 3 << std::endl;
-
-	/*
-	for (int i = 0; i < polys.size() / 3; i++)
-	{
-		std::cout << polys[i*3] << " # " << polys[i*3+1] << " # " << polys[i*3+2] << std::endl;
-	}
-	*/
+	std::cout << "polys size " << polys.size() << std::endl;
 
 	input_ctr = InputController();
 	while (1)
@@ -166,17 +160,13 @@ void render()
 	//Scene::instance().render();
 
 	glColor3f(1.0, 0.5, 0.5);
-	glBegin(GL_POLYGON);
 	for (int i = 0; i < polys.size(); i++)
 	{
-		glVertex3f(points[polys[i]].x, points[polys[i]].y, points[polys[i]].z);
-		if (i != 0 && i % 3 == 0)
-		{
-			glEnd();
-			glBegin(GL_POLYGON);
-		}
+		glBegin(GL_POLYGON);
+		for (int j = 0; j < 3; j++)
+			glVertex3f(polys[i][j].x, polys[i][j].y, polys[i][j].z);
+		glEnd();
 	}
-	glEnd();
 
-	SDL_GL_SwapBuffers( );
+	SDL_GL_SwapBuffers();
 }
