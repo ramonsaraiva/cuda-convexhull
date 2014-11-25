@@ -10,7 +10,7 @@
 #include "tinyobjloader/tiny_obj_loader.h"
 
 #include "camera/camera.h"
-#include "convexhull/convexhull.h"
+#include "vec/vec.h"
 
 //	SceneObject
 

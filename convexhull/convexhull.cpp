@@ -6,6 +6,8 @@
 #include <stack>
 #include <array>
 
+#include "vec/vec.h"
+
 #include "convexhull.h"
 
 void sanitize(std::vector<vec3>& points)
@@ -145,7 +147,7 @@ int next_point(std::vector<vec3> points, int p1_i, int p2_i)
 		po = candidate.project_over(edge);
 		candidate = candidate.sub(po);
 
-		vec3 cross = candidate.cross(v);
+		vec3 cross = v.cross(candidate);
 		if (cross.dot(edge) > 0)
 			candidate_i = i;
 	}

@@ -1,5 +1,4 @@
 #include <iostream>
-#include <array>
 
 #include <SDL/SDL.h>
 #include <GL/glew.h>
@@ -11,7 +10,7 @@
 #include "camera/camera.h"
 #include "scene/scene.h"
 #include "input/input.h"
-#include "convexhull/convexhull.h"
+#include "vec/vec.h"
 
 #define WIDTH 900
 #define HEIGHT 700
@@ -20,15 +19,26 @@ using namespace std;
 
 InputController input_ctr;
 
+std::vector<vec3> obj_points;
+
+// cuda
+vec3* in_points;
+vec3* out_points;
+int points_size;
+
 void* setup_sdl();
 void setup_gl();
+void setup_cuda();
 void render();
 
-std::vector<vec3> points;
-std::vector<std::array<vec3, 3>> polys;
+void sanitize(std::vector<vec3>& points);
+
+//	CUDA
+__global__ void lower(vec3* in_points, vec3* out_points);
 
 int main(int argc, char** argv)
 {
+	setup_cuda();
 	setup_sdl();
 	glewInit();
 	setup_gl();
@@ -40,22 +50,13 @@ int main(int argc, char** argv)
 	SceneObject obj = SceneObject("obj");
 	obj.load_obj(std::string("primitives/" + std::string(argv[1]) + "/" + std::string(argv[1]) + ".obj").c_str());
 	obj.build_vbo();
-	obj.set_render_mode(GL_POINTS);
+	obj.set_render_mode(GL_TRIANGLES);
 
 	Scene::instance().add_object("obj", &obj);
 
-	//hull
-	
-	/*
-	vec3_all_tests();
-	ch_all_tests();
-	*/
-	
-	obj.points(points);
-	sanitize(points);
-	giftwrap(points, polys);
-
-	std::cout << "polys size " << polys.size() << std::endl;
+	obj.points(obj_points);
+	sanitize(obj_points);
+	points_size = obj_points.size();
 
 	input_ctr = InputController();
 	while (1)
@@ -65,6 +66,22 @@ int main(int argc, char** argv)
 	}
 
 	return 0;
+}
+
+__global__ void lower(vec3* in_points, vec3* out_points)
+{
+}
+
+void setup_cuda()
+{
+	cudaError_t cuda_s;
+
+	cuda_s = cudaSetDevice(0);
+	cuda_s = cudaMalloc((void**) &in_points, points_size * sizeof(vec3));
+	cuda_s = cudaMalloc((void**) &out_points, points_size * sizeof(vec3));
+
+	cudaFree(in_points);
+	cudaFree(out_points);
 }
 
 void setup_gl()
@@ -157,13 +174,14 @@ void render()
 	Scene::instance().default_camera()->refresh_lookat();
 	//Scene::instance().render();
 
+	/*
 	glColor3f(1.0, 1.0, 1.0);
 	glBegin(GL_TRIANGLES);
 	for (int i = 0; i < polys.size(); i++)
 	{
 		vec3 v1 = polys[i][1].sub(polys[i][0]);
 		vec3 v2 = polys[i][2].sub(polys[i][0]);
-		vec3 normal = v2.cross(v1);
+		vec3 normal = v1.cross(v2);
 		normal.normalize();
 
 		glNormal3f(normal.x, normal.y, normal.z);
@@ -174,6 +192,30 @@ void render()
 		}
 	}
 	glEnd();
+	*/
 
 	SDL_GL_SwapBuffers();
+}
+
+void sanitize(std::vector<vec3>& points)
+{
+	std::map<int, bool> to_delete;
+
+	for (int i = 0; i < points.size(); i++)
+	{
+		for (int j = i+1; j < points.size(); j++)
+		{
+			if (fabs(points[i].x - points[j].x) < 0.002 &&
+				fabs(points[i].y - points[j].y) < 0.002 &&
+				fabs(points[i].z - points[j].z) < 0.002)
+			{
+				to_delete[j] = true;
+			}
+		}
+	}
+
+	for(std::map<int, bool>::iterator iter = to_delete.begin(); iter != to_delete.end(); iter++)
+	{
+		points.erase(points.begin() + iter->first);
+	}
 }
