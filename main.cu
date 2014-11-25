@@ -1,4 +1,6 @@
+#include <stdio.h>
 #include <iostream>
+#include <math.h>
 
 #include <SDL/SDL.h>
 #include <GL/glew.h>
@@ -10,21 +12,100 @@
 #include "camera/camera.h"
 #include "scene/scene.h"
 #include "input/input.h"
-#include "vec/vec.h"
 
 #define WIDTH 900
 #define HEIGHT 700
 
 using namespace std;
 
+typedef struct cuvec3_s
+{
+	float x;
+	float y;
+	float z;
+
+	__device__ cuvec3_s(float _x, float _y, float _z)
+	{
+		x = _x;
+		y = _y;
+		z = _z;
+	}
+
+	__device__ cuvec3_s() {}
+
+	__device__ cuvec3_s add(cuvec3_s& v)
+	{
+		struct cuvec3_s nv = cuvec3_s(x + v.x, y + v.y, z + v.z);
+		return nv;
+	}
+
+	__device__ cuvec3_s sub(cuvec3_s& v)
+	{
+		struct cuvec3_s nv = cuvec3_s(x - v.x, y - v.y, z - v.z);
+		return nv;
+	}
+
+	__device__ cuvec3_s mult(cuvec3_s& v)
+	{
+		struct cuvec3_s nv = cuvec3_s(x * v.x, y * v.y, z * v.z);
+		return nv;
+	}
+
+	__device__ float dot(cuvec3_s& v)
+	{
+		return x * v.x + y * v.y + z * v.z;
+	}
+
+	__device__ cuvec3_s cross(cuvec3_s& v)
+	{
+		struct cuvec3_s c = cuvec3_s(y * v.z - z * v.y,
+								 z * v.x - x * v.z,
+								 x * v.y - y * v.x);
+		return c;
+	}
+
+	__device__ cuvec3_s project_over(cuvec3_s& v)
+	{
+		float length = dot(v);
+		struct cuvec3_s nv = cuvec3_s(length * v.x, length * v.y, length * v.z);
+		return nv;
+	}
+
+	__device__ float length2()
+	{
+		return (x * x) + (y * y) + (z * z);
+	}
+
+	__device__ void normalize()
+	{
+		float length = length2();
+		if (length == 0)
+			return;
+
+		length = sqrt(length);
+		x = x/length;
+		y = y/length;
+		z = z/length;
+	}
+} cuvec3;
+
 InputController input_ctr;
 
 std::vector<vec3> obj_points;
 
-// cuda
-vec3* in_points;
-vec3* out_points;
+/*
+   CUDA DATA
+*/
+
+std::vector<cuvec3> obj_cupoints;
+cuvec3* in_points;
+cuvec3* out_points;
 int points_size;
+std::vector<int> threads;
+
+/*
+   END CUDA DATA
+*/
 
 void* setup_sdl();
 void setup_gl();
@@ -33,8 +114,15 @@ void render();
 
 void sanitize(std::vector<vec3>& points);
 
-//	CUDA
-__global__ void lower(vec3* in_points, vec3* out_points);
+/*
+   CUDA FUNCTIONS
+*/
+
+__global__ void lower(cuvec3* in_points, cuvec3* out_points);
+
+/*
+   END CUDA FUNCTIONS
+*/
 
 int main(int argc, char** argv)
 {
@@ -56,7 +144,9 @@ int main(int argc, char** argv)
 
 	obj.points(obj_points);
 	sanitize(obj_points);
+
 	points_size = obj_points.size();
+	std::cout << "points size: " << points_size << std::endl;
 
 	input_ctr = InputController();
 	while (1)
@@ -68,8 +158,10 @@ int main(int argc, char** argv)
 	return 0;
 }
 
-__global__ void lower(vec3* in_points, vec3* out_points)
+__global__ void lower(cuvec3* in_points, cuvec3* out_points)
 {
+	unsigned int tid = threadIdx.x;
+	unsigned int p = blockIdx.x * blockDim.x + tid;
 }
 
 void setup_cuda()
@@ -77,8 +169,10 @@ void setup_cuda()
 	cudaError_t cuda_s;
 
 	cuda_s = cudaSetDevice(0);
-	cuda_s = cudaMalloc((void**) &in_points, points_size * sizeof(vec3));
-	cuda_s = cudaMalloc((void**) &out_points, points_size * sizeof(vec3));
+	cuda_s = cudaMalloc((void**) &in_points, points_size * sizeof(cuvec3));
+	cuda_s = cudaMalloc((void**) &out_points, points_size * sizeof(cuvec3));
+
+	lower<<<4, 2>>>(in_points, out_points);
 
 	cudaFree(in_points);
 	cudaFree(out_points);
