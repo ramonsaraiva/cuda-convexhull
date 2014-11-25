@@ -107,14 +107,13 @@ vec3* points;
 */
 
 cuvec3* in_points;
+int points_size;
+
 int* out_points;
 int* aux_points;
 int* cu_points_size;
 int* next_points;
-int points_size;
-
-int* open_edges;
-char* created_edges;
+int* created_edges;
 
 /*
    END CUDA DATA
@@ -136,6 +135,7 @@ int err(cudaError_t s);
 __global__ void test();
 __global__ void lower(int* cu_points_size, cuvec3* in_points, int* out_points);
 __global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int memp, int p1_i, int p2_i);
+__global__ void compute_edge(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int* created_edges, int memp, int p1_i, int p2_i);
 
 /*
    END CUDA FUNCTIONS
@@ -187,6 +187,8 @@ void setup_cuda()
 {
 	cudaError_t cuda_s;
 
+	int p1;
+	int p2;
 
 	cuda_s = cudaSetDevice(0);
 	cuda_s = cudaMalloc((void**) &cu_points_size, sizeof(int));
@@ -194,6 +196,7 @@ void setup_cuda()
 	cuda_s = cudaMalloc((void**) &out_points, points_size * sizeof(int));
 	cuda_s = cudaMalloc((void**) &aux_points, points_size * sizeof(int));
 	cuda_s = cudaMalloc((void**) &next_points, 2 * points_size * sizeof(int));
+	cuda_s = cudaMalloc((void**) &created_edges, 2 * points_size * sizeof(int));
 
 	cuda_s = cudaMemcpy(cu_points_size, &points_size, sizeof(int), cudaMemcpyHostToDevice);
 	cuda_s = cudaMemcpy(in_points, points, points_size * sizeof(cuvec3), cudaMemcpyHostToDevice);
@@ -202,6 +205,16 @@ void setup_cuda()
 	next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_points, 0, -1, -1);
 
 	cuda_s = cudaDeviceSynchronize();
+
+	cuda_s = cudaMemcpy(&p1, out_points, sizeof(int), cudaMemcpyDeviceToHost);
+	cuda_s = cudaMemcpy(&p2, next_points, sizeof(int), cudaMemcpyDeviceToHost);
+
+	printf("my initial edge: %d and %d\n", p1, p2);
+
+	compute_edge<<<1, 1>>>(cu_points_size, in_points, out_points, aux_points, next_points, created_edges, 1, p1, p2);
+
+	cuda_s = cudaDeviceSynchronize();
+
 	cuda_s = cudaDeviceReset();
 
 	/*
@@ -215,6 +228,23 @@ void setup_cuda()
 	cudaFree(out_points);
 	cudaFree(aux_points);
 	cudaFree(next_points);
+}
+
+__global__ void compute_edge(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int* created_edges, int memp, int p1_i, int p2_i)
+{
+	//atomic pls
+	for (int i = 0; i < *cu_points_size*2; i++)
+	{
+		if (created_edges[i*2] == p1_i && created_edges[i*2+1] == p2_i ||
+			created_edges[i*2] == p2_i && created_edges[i*2+1] == p1_i)
+			return;
+	}
+	created_edges[(memp-1)*2] = p1_i;
+	created_edges[(memp-1)*2+1] = p2_i;
+
+	//valeu plaquinha, valeu por ser noob, era so conseguir chamar um kernel
+	//dentro do kernel amiguxa, soh isso
+	next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_points, memp, p1_i, p2_i);
 }
 
 __global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int memp, int p1_i, int p2_i)
