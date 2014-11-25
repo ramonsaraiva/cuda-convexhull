@@ -59,6 +59,8 @@ int giftwrap(std::vector<vec3>& points, std::vector<std::array<vec3, 3>>& polys)
 	int p1 = lower(points);
 	int p2 = next_point(points, p1, -1);
 
+	printf("next point is => %d\n", p2);
+
 	add_edge(created_edges, open_edges, p2, p1);
 
 	while (!open_edges.empty())

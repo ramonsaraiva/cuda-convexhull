@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <math.h>
+#include <string>
 
 #include <SDL/SDL.h>
 #include <GL/glew.h>
@@ -107,11 +108,13 @@ vec3* points;
 
 cuvec3* in_points;
 int* out_points;
+int* aux_points;
 int* cu_points_size;
+int* next_points;
 int points_size;
-std::vector<int> threads;
 
-thrust::device_vector<int> dvec(10, 5);
+int* open_edges;
+char* created_edges;
 
 /*
    END CUDA DATA
@@ -128,8 +131,11 @@ void sanitize(std::vector<vec3>& points);
    CUDA FUNCTIONS
 */
 
-__global__ void test(int* ptr);
+int err(cudaError_t s);
+
+__global__ void test();
 __global__ void lower(int* cu_points_size, cuvec3* in_points, int* out_points);
+__global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int memp, int p1_i, int p2_i);
 
 /*
    END CUDA FUNCTIONS
@@ -177,9 +183,122 @@ int main(int argc, char** argv)
 	return 0;
 }
 
-__global__ void test(int* ptr)
+void setup_cuda()
 {
-	printf("emdcwqklfm,çlwqrçlqe %d\n", ptr[0]);
+	cudaError_t cuda_s;
+
+
+	cuda_s = cudaSetDevice(0);
+	cuda_s = cudaMalloc((void**) &cu_points_size, sizeof(int));
+	cuda_s = cudaMalloc((void**) &in_points, points_size * sizeof(cuvec3));
+	cuda_s = cudaMalloc((void**) &out_points, points_size * sizeof(int));
+	cuda_s = cudaMalloc((void**) &aux_points, points_size * sizeof(int));
+	cuda_s = cudaMalloc((void**) &next_points, 2 * points_size * sizeof(int));
+
+	cuda_s = cudaMemcpy(cu_points_size, &points_size, sizeof(int), cudaMemcpyHostToDevice);
+	cuda_s = cudaMemcpy(in_points, points, points_size * sizeof(cuvec3), cudaMemcpyHostToDevice);
+
+	lower<<<2, 181>>>(cu_points_size, in_points, out_points);
+	next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_points, 0, -1, -1);
+
+	cuda_s = cudaDeviceSynchronize();
+	cuda_s = cudaDeviceReset();
+
+	/*
+	for (int i = 0; i < obj_points.size(); i++)
+	{
+	}
+	*/
+
+	cudaFree(cu_points_size);
+	cudaFree(in_points);
+	cudaFree(out_points);
+	cudaFree(aux_points);
+	cudaFree(next_points);
+}
+
+__global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int memp, int p1_i, int p2_i)
+{
+	unsigned int tid = threadIdx.x;
+	unsigned int p = blockIdx.x * blockDim.x + tid;
+
+	int candidate_i = p * POINTS_PER_THREAD;
+
+	cuvec3 p1;
+	cuvec3 p2;
+	cuvec3 edge;
+
+	if (candidate_i < *cu_points_size)
+	{
+		if (p1_i < 0)
+			p1 = in_points[out_points[0]];
+		else
+			p1 = in_points[p1_i];
+
+		if (p2_i < 0)
+		{
+			cuvec3 v = cuvec3(1, 1, 0);
+			p2 = p1.sub(v);
+		}
+		else
+		{
+			p2 = in_points[p2_i];
+		}
+
+		edge = p2.sub(p1);
+		edge.normalize();
+
+		for (int i = p * POINTS_PER_THREAD; i < (p + 1) * POINTS_PER_THREAD && i < *cu_points_size; i++)
+		{
+			if (i == p1_i || i == p2_i)
+				continue;
+
+			cuvec3 v = in_points[i].sub(p1);
+			cuvec3 po = v.project_over(edge);
+			v = v.sub(po);
+
+			cuvec3 candidate = in_points[candidate_i].sub(p1);
+			po = candidate.project_over(edge);
+			candidate = candidate.sub(po);
+
+			cuvec3 cross = v.cross(candidate);
+			if (cross.dot(edge) > 0)
+				candidate_i = i;
+		}
+
+		aux_points[p] = candidate_i;
+	}
+
+	__syncthreads();
+
+	if (p == 0)
+	{
+		candidate_i = aux_points[0];
+
+		int div = (*cu_points_size % POINTS_PER_THREAD == 0) ? *cu_points_size / POINTS_PER_THREAD : (*cu_points_size / POINTS_PER_THREAD) + 1;
+		for (int i = 0; i < div; i++)
+		{
+			if (aux_points[i] == p1_i || aux_points[i] == p2_i)
+				continue;
+
+			cuvec3 v = in_points[aux_points[i]].sub(p1);
+			cuvec3 po = v.project_over(edge);
+			v = v.sub(po);
+
+			cuvec3 candidate = in_points[aux_points[candidate_i]].sub(p1);
+			po = candidate.project_over(edge);
+			candidate = candidate.sub(po);
+
+			cuvec3 cross = v.cross(candidate);
+			if (cross.dot(edge) > 0)
+			{
+				candidate_i = i;
+			}
+		}
+
+		next_points[memp] = aux_points[candidate_i];
+		printf("the next point is => %d\n", aux_points[candidate_i]);
+	}
 }
 
 __global__ void lower(int* cu_points_size, cuvec3* in_points, int* out_points)
@@ -218,9 +337,10 @@ __global__ void lower(int* cu_points_size, cuvec3* in_points, int* out_points)
 
 	if (p == 0)
 	{
-		low = 0;
+		low = out_points[0];
 
-		for (int i = 0; i < *cu_points_size / POINTS_PER_THREAD; i++)
+		int div = (*cu_points_size % POINTS_PER_THREAD == 0) ? *cu_points_size / POINTS_PER_THREAD : (*cu_points_size / POINTS_PER_THREAD) + 1;
+		for (int i = 0; i < div; i++)
 		{
 			if (in_points[out_points[i]].z < in_points[out_points[low]].z)
 			{
@@ -245,41 +365,6 @@ __global__ void lower(int* cu_points_size, cuvec3* in_points, int* out_points)
 	}
 }
 
-void setup_cuda()
-{
-	cudaError_t cuda_s;
-
-	cuda_s = cudaSetDevice(0);
-	cuda_s = cudaMalloc((void**) &cu_points_size, sizeof(int));
-	cuda_s = cudaMalloc((void**) &in_points, points_size * sizeof(cuvec3));
-	cuda_s = cudaMalloc((void**) &out_points, points_size * sizeof(cuvec3));
-
-	cuda_s = cudaMemcpy(cu_points_size, &points_size, sizeof(int), cudaMemcpyHostToDevice);
-	cuda_s = cudaMemcpy(in_points, points, points_size * sizeof(cuvec3), cudaMemcpyHostToDevice);
-
-	lower<<<2, 181>>>(cu_points_size, in_points, out_points);
-
-	int* ptr = thrust::raw_pointer_cast(&dvec[0]);
-
-	thrust::device_vector<int> open_edges (points_size * 2 * 2, 0);
-
-	test<<<1, 1>>>(ptr);
-
-	cuda_s = cudaDeviceSynchronize();
-
-	cuda_s = cudaMemcpy(points, out_points, points_size * sizeof(cuvec3), cudaMemcpyDeviceToHost);
-
-	cuda_s = cudaDeviceReset();
-
-	/*
-	for (int i = 0; i < obj_points.size(); i++)
-	{
-	}
-	*/
-
-	cudaFree(in_points);
-	cudaFree(out_points);
-}
 
 void setup_gl()
 {
@@ -415,4 +500,14 @@ void sanitize(std::vector<vec3>& points)
 	{
 		points.erase(points.begin() + iter->first);
 	}
+}
+
+int err(cudaError_t s)
+{
+	if (s == cudaSuccess)
+		return 0;
+
+	fprintf(stderr, "ERROR: %s\n", cudaGetErrorString(s));
+
+	return 1;
 }
