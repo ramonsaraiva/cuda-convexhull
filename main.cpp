@@ -53,6 +53,8 @@ int main(int argc, char** argv)
 	
 	obj.points(points);
 	sanitize(points);
+	int low = lower(points);
+	printf("points %d\nlower %d\n", points.size(), low);
 	giftwrap(points, polys);
 
 	std::cout << "polys size " << polys.size() << std::endl;

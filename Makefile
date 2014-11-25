@@ -7,7 +7,7 @@ NVCC = nvcc
 
 CFLAGS = -I. -std=c++11 -pthread `pkg-config --cflags-only-I sdl`
 CNFLAGS = -I. `pkg-config --cflags-only-I sdl`
-NVCFLAGS = -I. `pkg-config --cflags-only-I sdl`
+NVCFLAGS = -arch sm_20 -I. `pkg-config --cflags-only-I sdl`
 
 LDFLAGS = `pkg-config --libs-only-L sdl`
 LIBS = -lSOIL -lGLEW -lGLU -lglut `pkg-config --libs-only-l sdl`
