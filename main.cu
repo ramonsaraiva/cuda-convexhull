@@ -242,9 +242,16 @@ __global__ void compute_edge(int* cu_points_size, cuvec3* in_points, int* out_po
 	created_edges[(memp-1)*2] = p1_i;
 	created_edges[(memp-1)*2+1] = p2_i;
 
-	//valeu plaquinha, valeu por ser noob, era so conseguir chamar um kernel
-	//dentro do kernel amiguxa, soh isso
+	//gpu nao faz isso
 	next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_points, memp, p1_i, p2_i);
+
+	//p3 = next_points[memp];
+
+	//add poly to hull
+
+	//compute_edge p1 p2 (..........., memp+1, p1, p2);
+	//compute_edge p2 p3
+	//compute_edge p3 p1
 }
 
 __global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int memp, int p1_i, int p2_i)
