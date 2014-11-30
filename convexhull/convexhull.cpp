@@ -22,14 +22,11 @@ void sanitize(std::vector<vec3>& points)
 				fabs(points[i].y - points[j].y) < 0.002 &&
 				fabs(points[i].z - points[j].z) < 0.002)
 			{
-				to_delete[j] = true;
+				points.erase(points.begin() + j);
+				--j;
+				--i;
 			}
 		}
-	}
-
-	for(std::map<int, bool>::iterator iter = to_delete.begin(); iter != to_delete.end(); iter++)
-	{
-		points.erase(points.begin() + iter->first);
 	}
 }
 
@@ -59,7 +56,7 @@ int giftwrap(std::vector<vec3>& points, std::vector<std::array<vec3, 3>>& polys)
 	int p1 = lower(points);
 	int p2 = next_point(points, p1, -1);
 
-	printf("next point is => %d\n", p2);
+	printf("next point is => %d {%f, %f, %f}\n", p2, points[p2].x, points[p2].y, points[p2].z);
 
 	add_edge(created_edges, open_edges, p2, p1);
 

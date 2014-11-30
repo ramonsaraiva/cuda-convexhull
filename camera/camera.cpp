@@ -54,7 +54,7 @@ void Camera::reset_view()
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 
-	gluPerspective(45.0, _width/(double)_height, 0.2, _depth);
+	gluPerspective(45.0, _width/(double)_height, 0.01, _depth);
 
 	refresh_lookat();
 }

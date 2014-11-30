@@ -2,6 +2,9 @@
 #include <iostream>
 #include <math.h>
 #include <string>
+#include <vector>
+#include <stack>
+#include <map>
 
 #include <SDL/SDL.h>
 #include <GL/glew.h>
@@ -101,6 +104,8 @@ InputController input_ctr;
 
 std::vector<vec3> obj_points;
 vec3* points;
+std::vector< std::vector<vec3> > polys;
+
 
 /*
    CUDA DATA
@@ -112,7 +117,7 @@ int points_size;
 int* out_points;
 int* aux_points;
 int* cu_points_size;
-int* next_points;
+int* next_p;
 int* created_edges;
 
 /*
@@ -121,10 +126,12 @@ int* created_edges;
 
 void* setup_sdl();
 void setup_gl();
-void setup_cuda();
+void giftwrap();
 void render();
 
 void sanitize(std::vector<vec3>& points);
+bool edge_exists(std::map<std::string, bool>& created, int p1, int p2);
+void add_edge(std::map<std::string, bool>& created, std::stack< std::vector<int> >& edges, int p1, int p2);
 
 /*
    CUDA FUNCTIONS
@@ -134,8 +141,7 @@ int err(cudaError_t s);
 
 __global__ void test();
 __global__ void lower(int* cu_points_size, cuvec3* in_points, int* out_points);
-__global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int memp, int p1_i, int p2_i);
-__global__ void compute_edge(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int* created_edges, int memp, int p1_i, int p2_i);
+__global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_p, int p1_i, int p2_i);
 
 /*
    END CUDA FUNCTIONS
@@ -171,7 +177,7 @@ int main(int argc, char** argv)
 		points[i] = obj_points[i];
 	}
 
-	setup_cuda();
+	giftwrap();
 
 	input_ctr = InputController();
 	while (1)
@@ -183,71 +189,91 @@ int main(int argc, char** argv)
 	return 0;
 }
 
-void setup_cuda()
+void giftwrap()
 {
 	cudaError_t cuda_s;
+	cudaEvent_t start, stop;
+	float time_ms;
 
 	int p1;
 	int p2;
 
+	std::stack< std::vector<int> > open_edges;
+	std::map<std::string, bool> created_edges;
+
 	cuda_s = cudaSetDevice(0);
+
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
 	cuda_s = cudaMalloc((void**) &cu_points_size, sizeof(int));
 	cuda_s = cudaMalloc((void**) &in_points, points_size * sizeof(cuvec3));
 	cuda_s = cudaMalloc((void**) &out_points, points_size * sizeof(int));
 	cuda_s = cudaMalloc((void**) &aux_points, points_size * sizeof(int));
-	cuda_s = cudaMalloc((void**) &next_points, 2 * points_size * sizeof(int));
+	cuda_s = cudaMalloc((void**) &next_p, sizeof(int));
 	cuda_s = cudaMalloc((void**) &created_edges, 2 * points_size * sizeof(int));
 
 	cuda_s = cudaMemcpy(cu_points_size, &points_size, sizeof(int), cudaMemcpyHostToDevice);
 	cuda_s = cudaMemcpy(in_points, points, points_size * sizeof(cuvec3), cudaMemcpyHostToDevice);
 
+	cudaEventRecord(start);
+
 	lower<<<2, 181>>>(cu_points_size, in_points, out_points);
-	next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_points, 0, -1, -1);
+	next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_p, -1, -1);
 
 	cuda_s = cudaDeviceSynchronize();
 
 	cuda_s = cudaMemcpy(&p1, out_points, sizeof(int), cudaMemcpyDeviceToHost);
-	cuda_s = cudaMemcpy(&p2, next_points, sizeof(int), cudaMemcpyDeviceToHost);
+	cuda_s = cudaMemcpy(&p2, next_p, sizeof(int), cudaMemcpyDeviceToHost);
 
-	printf("my initial edge: %d and %d\n", p1, p2);
+	add_edge(created_edges, open_edges, p2, p1);
 
-	compute_edge<<<1, 1>>>(cu_points_size, in_points, out_points, aux_points, next_points, created_edges, 1, p1, p2);
+	while (!open_edges.empty())
+	{
+		p1 = open_edges.top()[0];
+		p2 = open_edges.top()[1];
+		open_edges.pop();
+
+
+		if (edge_exists(created_edges, p1, p2))
+			continue;
+
+		int p3;
+
+		next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_p, p1, p2);
+		cuda_s = cudaDeviceSynchronize();
+		cuda_s = cudaMemcpy(&p3, next_p, sizeof(int), cudaMemcpyDeviceToHost);
+
+		std::vector<vec3> v;
+		v.push_back(points[p1]);
+		v.push_back(points[p2]);
+		v.push_back(points[p3]);
+
+		polys.push_back(v);
+
+		add_edge(created_edges, open_edges, p1, p2);
+		add_edge(created_edges, open_edges, p2, p3);
+		add_edge(created_edges, open_edges, p3, p1);
+	}
 
 	cuda_s = cudaDeviceSynchronize();
 
-	cuda_s = cudaDeviceReset();
+	cudaEventSynchronize(stop);
+	time_ms = 0;
+	cudaEventElapsedTime(&time_ms, start, stop);
 
-	/*
-	for (int i = 0; i < obj_points.size(); i++)
-	{
-	}
-	*/
+	cuda_s = cudaDeviceReset();
 
 	cudaFree(cu_points_size);
 	cudaFree(in_points);
 	cudaFree(out_points);
 	cudaFree(aux_points);
-	cudaFree(next_points);
+	cudaFree(next_p);
+
+	printf("time ms => %f\n", time_ms);
 }
 
-__global__ void compute_edge(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int* created_edges, int memp, int p1_i, int p2_i)
-{
-	//atomic pls
-	for (int i = 0; i < *cu_points_size*2; i++)
-	{
-		if (created_edges[i*2] == p1_i && created_edges[i*2+1] == p2_i ||
-			created_edges[i*2] == p2_i && created_edges[i*2+1] == p1_i)
-			return;
-	}
-	created_edges[(memp-1)*2] = p1_i;
-	created_edges[(memp-1)*2+1] = p2_i;
-
-	//valeu plaquinha, valeu por ser noob, era so conseguir chamar um kernel
-	//dentro do kernel amiguxa, soh isso
-	next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_points, memp, p1_i, p2_i);
-}
-
-__global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_points, int memp, int p1_i, int p2_i)
+__global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_p, int p1_i, int p2_i)
 {
 	unsigned int tid = threadIdx.x;
 	unsigned int p = blockIdx.x * blockDim.x + tid;
@@ -278,7 +304,7 @@ __global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_poin
 		edge = p2.sub(p1);
 		edge.normalize();
 
-		for (int i = p * POINTS_PER_THREAD; i < (p + 1) * POINTS_PER_THREAD && i < *cu_points_size; i++)
+		for (int i = p * POINTS_PER_THREAD + 1; i < (p + 1) * POINTS_PER_THREAD && i < *cu_points_size; i++)
 		{
 			if (i == p1_i || i == p2_i)
 				continue;
@@ -303,13 +329,19 @@ __global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_poin
 
 	if (p == 0)
 	{
-		candidate_i = aux_points[0];
+		candidate_i = -1;
 
 		int div = (*cu_points_size % POINTS_PER_THREAD == 0) ? *cu_points_size / POINTS_PER_THREAD : (*cu_points_size / POINTS_PER_THREAD) + 1;
 		for (int i = 0; i < div; i++)
 		{
 			if (aux_points[i] == p1_i || aux_points[i] == p2_i)
 				continue;
+
+			if (candidate_i == -1)
+			{
+				candidate_i = i;
+				continue;
+			}
 
 			cuvec3 v = in_points[aux_points[i]].sub(p1);
 			cuvec3 po = v.project_over(edge);
@@ -326,8 +358,7 @@ __global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_poin
 			}
 		}
 
-		next_points[memp] = aux_points[candidate_i];
-		printf("the next point is => %d\n", aux_points[candidate_i]);
+		*next_p = aux_points[candidate_i];
 	}
 }
 
@@ -390,7 +421,6 @@ __global__ void lower(int* cu_points_size, cuvec3* in_points, int* out_points)
 			}
 		}
 
-		printf("low => %d\n", out_points[low]);
 		out_points[0] = out_points[low];
 	}
 }
@@ -398,11 +428,9 @@ __global__ void lower(int* cu_points_size, cuvec3* in_points, int* out_points)
 
 void setup_gl()
 {
-	/*
-	   glCullFace(GL_BACK);
-	   glFrontFace(GL_CCW);
-	   glEnable(GL_CULL_FACE);
-	*/
+	glCullFace(GL_BACK);
+	glFrontFace(GL_CW);
+	glEnable(GL_CULL_FACE);
 
 	glClearColor(0, 0, 0, 0);
 	glClearDepth(1.0);
@@ -486,14 +514,13 @@ void render()
 	Scene::instance().default_camera()->refresh_lookat();
 	//Scene::instance().render();
 
-	/*
 	glColor3f(1.0, 1.0, 1.0);
 	glBegin(GL_TRIANGLES);
 	for (int i = 0; i < polys.size(); i++)
 	{
 		vec3 v1 = polys[i][1].sub(polys[i][0]);
 		vec3 v2 = polys[i][2].sub(polys[i][0]);
-		vec3 normal = v1.cross(v2);
+		vec3 normal = v2.cross(v1);
 		normal.normalize();
 
 		glNormal3f(normal.x, normal.y, normal.z);
@@ -504,7 +531,6 @@ void render()
 		}
 	}
 	glEnd();
-	*/
 
 	SDL_GL_SwapBuffers();
 }
@@ -521,14 +547,42 @@ void sanitize(std::vector<vec3>& points)
 				fabs(points[i].y - points[j].y) < 0.002 &&
 				fabs(points[i].z - points[j].z) < 0.002)
 			{
-				to_delete[j] = true;
+				points.erase(points.begin() + j);
+				--j;
+				--i;
 			}
 		}
 	}
+}
 
-	for(std::map<int, bool>::iterator iter = to_delete.begin(); iter != to_delete.end(); iter++)
+bool edge_exists(std::map<std::string, bool>& created, int p1, int p2)
+{
+	char key_c[32];
+	std::string key;
+
+	sprintf(key_c, "%d_%d", p1, p2);
+	key = std::string(key_c);
+
+	return created[key];
+}
+
+void add_edge(std::map<std::string, bool>& created, std::stack< std::vector<int> >& edges, int p1, int p2)
+{
+	char key_c[32];
+	std::string key;
+
+	sprintf(key_c, "%d_%d", p1, p2);
+	key = std::string(key_c);
+
+	created[key] = true;
+
+	if (!edge_exists(created, p2, p1))
 	{
-		points.erase(points.begin() + iter->first);
+		std::vector<int> edge;
+		edge.push_back(p2);
+		edge.push_back(p1);
+
+		edges.push(edge);
 	}
 }
 

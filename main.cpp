@@ -1,5 +1,6 @@
 #include <iostream>
 #include <array>
+#include <sys/time.h>
 
 #include <SDL/SDL.h>
 #include <GL/glew.h>
@@ -27,6 +28,13 @@ void render();
 std::vector<vec3> points;
 std::vector<std::array<vec3, 3>> polys;
 
+unsigned long tms (void)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+}
+
 int main(int argc, char** argv)
 {
 	setup_sdl();
@@ -53,7 +61,14 @@ int main(int argc, char** argv)
 	
 	obj.points(points);
 	sanitize(points);
+
 	int low = lower(points);
+
+	for (int i = 0; i < points.size(); i++)
+	{
+		printf("p %f %f %f\n", points[i].x, points[i].y, points[i].z);
+	}
+
 	printf("points %d\nlower %d\n", points.size(), low);
 	giftwrap(points, polys);
 
