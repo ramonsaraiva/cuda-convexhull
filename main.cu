@@ -198,6 +198,9 @@ void giftwrap()
 	int p1;
 	int p2;
 
+	int blocks;
+	int threads;
+
 	std::stack< std::vector<int> > open_edges;
 	std::map<std::string, bool> created_edges;
 
@@ -216,10 +219,21 @@ void giftwrap()
 	cuda_s = cudaMemcpy(cu_points_size, &points_size, sizeof(int), cudaMemcpyHostToDevice);
 	cuda_s = cudaMemcpy(in_points, points, points_size * sizeof(cuvec3), cudaMemcpyHostToDevice);
 
+	if (points_size > 1024)
+	{
+		threads = 1024;
+		blocks = ceil(points_size / 1024);
+	}
+	else
+	{
+		blocks = 1;
+		threads = points_size;
+	}
+
 	cudaEventRecord(start);
 
-	lower<<<2, 181>>>(cu_points_size, in_points, out_points);
-	next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_p, -1, -1);
+	lower<<<blocks, threads>>>(cu_points_size, in_points, out_points);
+	next_point<<<blocks, threads>>>(cu_points_size, in_points, out_points, aux_points, next_p, -1, -1);
 
 	cuda_s = cudaDeviceSynchronize();
 
@@ -240,7 +254,7 @@ void giftwrap()
 
 		int p3;
 
-		next_point<<<2, 181>>>(cu_points_size, in_points, out_points, aux_points, next_p, p1, p2);
+		next_point<<<blocks, threads>>>(cu_points_size, in_points, out_points, aux_points, next_p, p1, p2);
 		cuda_s = cudaDeviceSynchronize();
 		cuda_s = cudaMemcpy(&p3, next_p, sizeof(int), cudaMemcpyDeviceToHost);
 
@@ -257,6 +271,7 @@ void giftwrap()
 	}
 
 	cuda_s = cudaDeviceSynchronize();
+	cudaEventRecord(stop);
 
 	cudaEventSynchronize(stop);
 	time_ms = 0;
@@ -264,13 +279,14 @@ void giftwrap()
 
 	cuda_s = cudaDeviceReset();
 
+	printf("polys: %d\n", polys.size());
+	printf("time %f\n", time_ms/1000.0);
+
 	cudaFree(cu_points_size);
 	cudaFree(in_points);
 	cudaFree(out_points);
 	cudaFree(aux_points);
 	cudaFree(next_p);
-
-	printf("time ms => %f\n", time_ms);
 }
 
 __global__ void next_point(int* cu_points_size, cuvec3* in_points, int* out_points, int* aux_points, int* next_p, int p1_i, int p2_i)

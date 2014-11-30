@@ -8,3 +8,4 @@ parser/parser.hpp
 parser/parser.h
 parser/parser
 *.*~
+primitives/torre/torre.obj

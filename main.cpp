@@ -37,6 +37,10 @@ unsigned long tms (void)
 
 int main(int argc, char** argv)
 {
+	unsigned long tic;
+	unsigned long toc;
+	float time;
+
 	setup_sdl();
 	glewInit();
 	setup_gl();
@@ -48,7 +52,7 @@ int main(int argc, char** argv)
 	SceneObject obj = SceneObject("obj");
 	obj.load_obj(std::string("primitives/" + std::string(argv[1]) + "/" + std::string(argv[1]) + ".obj").c_str());
 	obj.build_vbo();
-	obj.set_render_mode(GL_POINTS);
+	obj.set_render_mode(GL_TRIANGLES);
 
 	Scene::instance().add_object("obj", &obj);
 
@@ -64,15 +68,14 @@ int main(int argc, char** argv)
 
 	int low = lower(points);
 
-	for (int i = 0; i < points.size(); i++)
-	{
-		printf("p %f %f %f\n", points[i].x, points[i].y, points[i].z);
-	}
-
 	printf("points %d\nlower %d\n", points.size(), low);
+	tic = tms();
 	giftwrap(points, polys);
+	toc = tms();
+	time = (toc - tic) / (float)1000;
 
 	std::cout << "polys size " << polys.size() << std::endl;
+	std::cout << "time " << time << std::endl;
 
 	input_ctr = InputController();
 	while (1)
@@ -172,8 +175,9 @@ void render()
 	glLoadIdentity();
 
 	Scene::instance().default_camera()->refresh_lookat();
-	//Scene::instance().render();
+	Scene::instance().render();
 
+	/*
 	glColor3f(1.0, 1.0, 1.0);
 	glBegin(GL_TRIANGLES);
 	for (int i = 0; i < polys.size(); i++)
@@ -191,6 +195,7 @@ void render()
 		}
 	}
 	glEnd();
+	*/
 
 	SDL_GL_SwapBuffers();
 }
